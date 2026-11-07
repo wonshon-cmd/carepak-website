@@ -8,52 +8,112 @@ document.querySelectorAll('[data-portal]').forEach(b=>b.onclick=()=>{document.qu
 (function(){const scene=document.querySelector('.orbit-scene'),ring=scene&&scene.querySelector('.outer-track');if(!ring)return;
 const set=()=>scene.style.setProperty('--orbit-r',(ring.offsetWidth/2)+'px');set();addEventListener('resize',set)})();
 
-// ---- Illustrative care-coordination chat (fictional patient; nothing is sent anywhere) ----
+
+// ---- Illustrative care-coordination workflow (fictional patient; nothing is sent anywhere) ----
 (function(){
-  const stream=document.querySelector('.chat-stream'),typing=document.querySelector('.chat-typing'),status=document.querySelector('.care-status');
-  if(!stream)return;
+  const flow=document.querySelector('.flow');if(!flow)return;
+  const rail=flow.querySelector('.flow-rail'),reqBox=flow.querySelector('.flow-req'),work=flow.querySelector('.flow-work'),cursor=flow.querySelector('.flow-cursor');
+  const log=document.querySelector('.flow-log'),status=document.querySelector('.care-status');
   const tabs=[...document.querySelectorAll('[data-scenario]')];
   const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const SCENARIOS=[
-    {done:'Medications ready · Free home delivery arranged',msgs:[
-      ['in','Medical assistant · 10:48 AM','Evelyn is being discharged at 11:30 AM. Can you have her medications delivered to her home?'],
-      ['out','Carepak pharmacist · 10:50 AM','Her medications are ready. We’ll deliver them to her home today, free of charge.'],
-      ['out','Carepak coordinator · 10:51 AM','We’ve notified Evelyn’s daughter and sent the patient a text update.']]},
-    {done:'Refills synchronized · One coordinated delivery',msgs:[
-      ['in','Evelyn’s daughter · 9:12 AM','Mom’s refills keep coming due on different days. Can they come together?'],
-      ['out','Carepak coordinator · 9:15 AM','Yes. We’ll synchronize her maintenance medications so everything refills at once.'],
-      ['out','Carepak pharmacist · 9:20 AM','Her next delivery will include everything, packaged by day and time, with an updated medication list.']]},
-    {done:'Access coordinated · Delivery scheduled',msgs:[
-      ['in','Medical assistant · 2:05 PM','Her new medication needs a prior authorization. Can you help us coordinate?'],
-      ['out','Carepak coordinator · 2:08 PM','We’re coordinating the plan requirements and supporting information with your office now.'],
-      ['out','Carepak coordinator · 4:40 PM','It’s approved. We’ll deliver today, and Evelyn will get a text when it’s on the way.']]}
-  ];
+  const h=(tag,cls,html)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e};
   let run=0;
-  function play(i){
+
+  function ctx(id,steps){
+    const wait=ms=>new Promise((ok,stop)=>setTimeout(()=>id===run?ok():stop('stop'),reduce?Math.min(ms,40):ms));
+    rail.replaceChildren(...steps.map((s,i)=>h('li','',`<span>${i+1}</span><small>${s}</small>`)));
+    rail.style.gridTemplateColumns=`repeat(${steps.length},1fr)`;
+    const c={wait};
+    c.node=i=>[...rail.children].forEach((li,k)=>{li.className=k<i?'done':k===i?'on':'';li.querySelector('span').textContent=k<i?'✓':k+1});
+    c.req=(icon,title,from,meta)=>{reqBox.innerHTML=`<div class="req"><span class="req-ic">${icon}</span><div class="req-tx"><b>${title}</b><small>${from}</small><p>${meta}</p></div><em class="pill">New</em></div>`};
+    c.pill=(t,cls)=>{const p=reqBox.querySelector('.pill');p.textContent=t;p.className='pill '+(cls||'');p.classList.add('bump');setTimeout(()=>p.classList.remove('bump'),400)};
+    c.say=(who,time,text)=>{const li=h('li','',`<b>${who}</b> <time>${time}</time><span>${text}</span>`);log.append(li);while(log.children.length>3)log.firstElementChild.remove()};
+    c.stat=(t,done)=>{status.className='care-status'+(done?' done':'');status.textContent=t};
+    c.show=el=>{work.replaceChildren(el);return el};
+    c.click=async el=>{
+      if(!reduce){
+        const f=flow.getBoundingClientRect(),r=el.getBoundingClientRect();
+        cursor.classList.add('on');
+        cursor.style.transform=`translate(${r.left-f.left+Math.min(r.width*.7,r.width-14)}px,${r.top-f.top+r.height*.5}px)`;
+        await wait(800);cursor.classList.add('tap');el.classList.add('pressed');await wait(280);cursor.classList.remove('tap');
+      }
+      el.classList.remove('pressed');el.classList.add('clicked');el.disabled=true;await wait(250);
+    };
+    c.btn=async(label,sub)=>{const box=h('div','act',(sub?`<p>${sub}</p>`:'')+`<button type="button" class="fbtn" tabindex="-1">${label}</button>`);c.show(box);await wait(450);await c.click(box.querySelector('button'));return box};
+    c.check=async(title,items)=>{const box=c.show(h('div','card',`<b class="card-t">${title}</b><ul class="checks">${items.map(t=>`<li>${t}</li>`).join('')}</ul>`));
+      for(const li of box.querySelectorAll('li')){await wait(520);li.classList.add('ok')}await wait(500)};
+    c.doc=async(title,pages,file)=>{
+      const box=c.show(h('div','card doc',`<div class="doc-ic">PDF</div><div class="doc-b"><b>${title}</b><small>Generating…</small><div class="bar"><i></i></div><ul class="pages"></ul></div>`));
+      const bar=box.querySelector('.bar i'),ul=box.querySelector('.pages');
+      for(let i=0;i<pages.length;i++){await wait(430);ul.append(h('li','',pages[i]));bar.style.width=Math.round((i+1)/pages.length*100)+'%'}
+      await wait(350);box.querySelector('small').innerHTML=`<span class="ready">Ready</span> ${file} · ${pages.length} page${pages.length>1?'s':''}`;box.classList.add('made');await wait(900);return box};
+    c.deliver=async(note)=>{
+      const box=c.show(h('div','card',`<b class="card-t">Delivery</b><ol class="track"><li>Packed</li><li>Out for delivery</li><li>Delivered</li></ol><p class="muted">${note}</p>`));
+      const li=box.querySelectorAll('.track li');
+      for(let i=0;i<2;i++){await wait(650);li[i].classList.add('ok')}await wait(500)};
+    c.toast=async(to,text)=>{
+      const box=c.show(h('div','sms',`<small>Text message to ${to}</small><div class="bubble">${text}</div><span class="sent">Delivered ✓</span>`));
+      await wait(1300);return box};
+    c.done=t=>{c.node(steps.length);c.stat(t,true);cursor.classList.remove('on')};
+    return c;
+  }
+
+  const SCENARIOS=[
+    {steps:['Request','Verify','Fill','Deliver','Notify'],async go(c){
+      c.node(0);c.req('📋','Discharge order','Medical assistant · 10:48 AM','Evelyn Parker · 3 new medications · discharge at 11:30 AM');
+      c.say('Medical assistant','10:48 AM','Evelyn is being discharged at 11:30 AM. Can you have her medications delivered to her home?');c.stat('Request received');
+      await c.wait(900);await c.btn('Accept order','Discharge medications for Evelyn Parker');c.pill('Accepted','blue');
+      c.node(1);c.stat('Verifying coverage and medications');await c.check('Pharmacist review',['Insurance verified · $0 copay','Allergies and interactions checked','Discharge list reconciled']);
+      c.node(2);await c.btn('Mark ready for delivery','3 medications filled · pharmacist verified');c.pill('Ready','green');
+      c.say('Carepak pharmacist','10:50 AM','Her medications are ready. We’ll deliver them to her home today, free of charge.');
+      c.node(3);c.stat('Out for delivery');await c.deliver('Free home delivery · arriving by 12:15 PM');
+      c.node(4);await c.toast('Evelyn and her daughter','Carepak: Evelyn’s medications are on the way and will arrive by 12:15 PM. Questions? 1.800.601.7092');
+      c.say('Carepak coordinator','10:51 AM','We’ve notified Evelyn’s daughter and sent the patient a text update.');
+      c.done('Medications ready · Free home delivery arranged')}},
+    {steps:['Request','Review','Sync','Package','Deliver'],async go(c){
+      c.node(0);c.req('🔁','Refill sync request','Evelyn’s daughter · 9:12 AM','4 maintenance medications · refills due on different days');
+      c.say('Evelyn’s daughter','9:12 AM','Mom’s refills keep coming due on different days. Can they come together?');c.stat('Request received');
+      await c.wait(900);c.node(1);c.pill('In progress','blue');c.stat('Reviewing refill dates');
+      const meds=[['Lisinopril 10 mg','Nov 3'],['Metformin 500 mg','Nov 9'],['Atorvastatin 20 mg','Nov 14'],['Levothyroxine 50 mcg','Nov 21']];
+      const box=c.show(h('div','card',`<b class="card-t">Next refill dates</b><ul class="meds">${meds.map(([m,d])=>`<li><span>${m}</span><em>${d}</em></li>`).join('')}</ul><button type="button" class="fbtn" tabindex="-1">Synchronize refills</button>`));
+      await c.wait(1100);c.node(2);await c.click(box.querySelector('button'));
+      for(const em of box.querySelectorAll('.meds em')){em.textContent='Nov 14';em.classList.add('synced');await c.wait(260)}
+      c.pill('Synced','blue');c.say('Carepak coordinator','9:15 AM','Yes. We’ll synchronize her maintenance medications so everything refills at once.');await c.wait(900);
+      c.node(3);c.stat('Packaging by day and time');
+      const grid=c.show(h('div','card',`<b class="card-t">Daily packs · morning, noon, evening, bedtime</b><div class="packs">${'<i></i>'.repeat(28)}</div>`));
+      for(const cell of grid.querySelectorAll('.packs i')){cell.classList.add('ok');await c.wait(45)}
+      await c.wait(400);await c.btn('Generate medication list','Packs ready for 4 medications');
+      await c.doc('Updated medication list',['Current medications & doses','Daily schedule'],'med-list-E-Parker.pdf');
+      c.say('Carepak pharmacist','9:20 AM','Her next delivery will include everything, packaged by day and time, with an updated medication list.');
+      c.node(4);c.pill('Scheduled','green');await c.deliver('One coordinated delivery · Nov 14');
+      c.done('Refills synchronized · One coordinated delivery')}},
+    {steps:['Request','Gather','PA packet','Submit','Approved','Deliver'],async go(c){
+      c.node(0);c.req('🛡️','Prior authorization needed','Medical assistant · 2:05 PM','New medication · Evelyn Parker · commercial plan');
+      c.say('Medical assistant','2:05 PM','Her new medication needs a prior authorization. Can you help us coordinate?');c.stat('Request received');
+      await c.wait(900);c.node(1);c.pill('In progress','blue');c.stat('Gathering supporting information');
+      await c.check('Plan requirements',['Diagnosis & ICD-10 codes','Chart notes & recent labs','Prior therapies tried','Plan criteria matched']);
+      c.say('Carepak coordinator','2:08 PM','We’re coordinating the plan requirements and supporting information with your office now.');
+      c.node(2);await c.btn('Generate PA packet','All requirements gathered');c.stat('Building the PA packet');
+      const doc=await c.doc('Prior authorization packet',['Cover sheet','Plan PA request form','Letter of medical necessity','Chart notes','Lab results','Prior therapy history'],'PA-packet-E-Parker.pdf');
+      c.node(3);doc.querySelector('.doc-b').append(h('button','fbtn','Submit to plan'));const sb=doc.querySelector('.doc-b .fbtn');sb.tabIndex=-1;
+      await c.wait(300);await c.click(sb);c.pill('Submitted · 2:31 PM','amber');c.stat('Submitted · waiting for the plan’s decision');
+      const w=c.show(h('div','card wait',`<span class="spin"></span><div><b>Waiting for plan decision</b><small>Submitted 2:31 PM · we follow up so your office doesn’t have to</small></div>`));
+      await c.wait(1500);c.node(4);
+      w.className='card stamp';w.innerHTML='<div class="seal">✓</div><div><b>APPROVED</b><small>4:40 PM · Ref PA-48213 · valid 12 months</small></div>';c.pill('Approved','green');
+      c.say('Carepak coordinator','4:40 PM','It’s approved. We’ll deliver today, and Evelyn will get a text when it’s on the way.');await c.wait(1300);
+      c.node(5);c.stat('Out for delivery');await c.deliver('Delivering today · free');
+      await c.toast('Evelyn','Carepak: Good news! Your new medication was approved and is on the way today.');
+      c.done('Access coordinated · Delivery scheduled')}}
+  ];
+
+  async function play(i){
     const id=++run,sc=SCENARIOS[i];
     tabs.forEach(t=>t.setAttribute('aria-selected',String(+t.dataset.scenario===i)));
-    stream.replaceChildren();typing.classList.remove('on');status.className='care-status';status.textContent='Request received';
-    let k=0;
-    const next=()=>{
-      if(id!==run)return;
-      if(k>=sc.msgs.length){typing.classList.remove('on');status.className='care-status done';status.textContent=sc.done;return}
-      const [dir,who,text]=sc.msgs[k++];
-      const add=()=>{
-        if(id!==run)return;
-        typing.classList.remove('on');
-        const m=document.createElement('div');m.className='chat-msg '+dir;
-        const s=document.createElement('small');s.textContent=who;
-        const d=document.createElement('div');d.textContent=text;
-        m.append(s,d);stream.append(m);
-        if(k===2)status.textContent='In progress';
-        setTimeout(next,reduce?0:900);
-      };
-      if(dir==='out'&&!reduce){typing.classList.add('on');setTimeout(add,1300)}else add();
-    };
-    next();
+    log.replaceChildren();work.replaceChildren();reqBox.replaceChildren();
+    cursor.classList.remove('on','tap');cursor.style.transform='';
+    try{await sc.go(ctx(id,sc.steps))}catch(e){if(e!=='stop')throw e}
   }
   tabs.forEach(t=>t.addEventListener('click',()=>play(+t.dataset.scenario)));
   document.getElementById('replay-chat').addEventListener('click',()=>{const cur=tabs.find(t=>t.getAttribute('aria-selected')==='true')||tabs[0];play(+cur.dataset.scenario)});
-  // Start when the chat scrolls into view
   if('IntersectionObserver'in window){const io=new IntersectionObserver(es=>{if(es.some(e=>e.isIntersecting)){play(0);io.disconnect()}},{threshold:.3});io.observe(document.querySelector('.care-chat'))}else play(0);
 })();
