@@ -31,3 +31,23 @@
 @keyframes orbit-a{from{transform:rotate(-51deg) translateX(var(--orbit-r,175px)) rotate(51deg)}to{transform:rotate(309deg) translateX(var(--orbit-r,175px)) rotate(-309deg)}}
 @keyframes orbit-b{from{transform:rotate(139deg) translateX(var(--orbit-r,175px)) rotate(-139deg)}to{transform:rotate(499deg) translateX(var(--orbit-r,175px)) rotate(-499deg)}}
 @media(prefers-reduced-motion:reduce){.hero .eyebrow .dot,.orbit-scene .orbit-spark{animation:none}}
+
+/* ---- Care chat demo (restored) ---- */
+.chat-msg{max-width:88%;margin-bottom:12px;animation:chat-in .45s ease both}
+.chat-msg small{display:block;font-size:9px;color:var(--muted);margin:0 0 4px 3px}
+.chat-msg div{border:1px solid #e1ebf0;border-radius:11px 11px 11px 3px;padding:10px 13px;font-size:13px;line-height:1.55;color:var(--ink);background:#fff}
+.chat-msg.out{margin-left:auto}
+.chat-msg.out small{text-align:right;margin-right:3px}
+.chat-msg.out div{background:#e9f6fd;border-color:#d3ecf9;border-radius:11px 11px 3px 11px}
+.chat-typing{opacity:0;transition:opacity .2s}
+.chat-typing.on{opacity:1}
+.chat-typing.on span{animation:chat-dots 1s infinite}
+.care-status{display:flex;align-items:center;gap:8px;background:#fff7dc;color:#7a5b00;transition:background .3s,color .3s}
+.care-status::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.care-status.done{background:#edf8f3;color:#37775e}
+.chat-controls button{cursor:pointer}
+.chat-scenarios button{cursor:pointer}
+@keyframes chat-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes chat-dots{50%{opacity:.3}}
+@media(max-width:700px){.chat-msg{max-width:95%}.chat-msg div{font-size:12px}}
+@media(prefers-reduced-motion:reduce){.chat-msg,.chat-typing.on span{animation:none}}
